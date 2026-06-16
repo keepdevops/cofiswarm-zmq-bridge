@@ -1,20 +1,5 @@
 # cofiswarm-zmq-bridge
 
-Cofiswarm component: `zmq-bridge`.
+In-process bus + HTTP control plane for `cofiswarm-common/zmq/topics.yaml` (real ZMQ in Sprint 13+).
 
-- Layout: [REPO-STANDARD-LAYOUT](https://github.com/keepdevops/cofiswarmdev/blob/main/docs/REPO-STANDARD-LAYOUT.md)
-- Migration: [MIGRATION-SPRINTS](https://github.com/keepdevops/cofiswarmdev/blob/main/docs/MIGRATION-SPRINTS.md)
-
-## FHS paths
-
-| Path | Purpose |
-|------|---------|
-| `/etc/cofiswarm/zmq-bridge/` | config |
-| `/var/lib/cofiswarm/zmq-bridge/` | state |
-| `/var/log/cofiswarm/zmq-bridge/` | logs |
-
-## Test
-
-```bash
-./test/scripts/assert-layout.sh zmq-bridge
-```
+Control: `:5555` · pub stub: `:5556` (future)

@@ -1,0 +1,10 @@
+prefix: swarm
+topics:
+  - swarm.kvpool.evict
+  - swarm.kvpool.pressure
+  - swarm.slot.erase
+  - swarm.slot.pressure
+  - swarm.dispatch.session
+  - swarm.infer.llama.metrics
+  - swarm.infer.mlx.metrics
+  - swarm.adapter.opencode.step

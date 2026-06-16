@@ -8,3 +8,4 @@ test/standalone/run/**/*
 !test/standalone/run/**/.gitkeep
 .env
 *.log
+bin/
