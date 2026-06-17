@@ -2,6 +2,7 @@ package bus
 
 import (
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -17,6 +18,12 @@ type Backend interface {
 	Subscribe(topic string, fn Handler) (cancel func(), err error)
 	Recent() []map[string]any
 	Close() error
+}
+
+// Requester is an optional capability: backends that support NATS request/reply implement
+// it (NatsBackend does; MemBackend does not). Used by the /v1/request HTTP gateway.
+type Requester interface {
+	Request(subject string, payload map[string]any, timeout time.Duration) (map[string]any, error)
 }
 
 // Config is the topics.yaml shape (see cofiswarm-common/zmq/topics.yaml).
