@@ -7,9 +7,9 @@ import (
 	"github.com/keepdevops/cofiswarm-zmq-bridge/internal/bus"
 )
 
-type Server struct{ bus *bus.Bus }
+type Server struct{ bus bus.Backend }
 
-func New(b *bus.Bus) *Server { return &Server{bus: b} }
+func New(b bus.Backend) *Server { return &Server{bus: b} }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -33,7 +33,10 @@ func (s *Server) Handler() http.Handler {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		s.bus.Publish(body.Topic, body.Payload)
+		if err := s.bus.Publish(body.Topic, body.Payload); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusAccepted)
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
