@@ -2,9 +2,17 @@ package bus
 
 import (
 	"encoding/json"
+	"errors"
 	"sync"
+	"time"
 
 	"github.com/nats-io/nats.go"
+)
+
+// Request failure sentinels, surfaced by the HTTP layer as 503 / 504.
+var (
+	ErrNoResponders   = errors.New("no responders")
+	ErrRequestTimeout = errors.New("request timed out")
 )
 
 // NatsBackend backs the bus with a real NATS broker — the diagram's always-on "middle man".
@@ -67,6 +75,30 @@ func (b *NatsBackend) Recent() []map[string]any {
 	out := make([]map[string]any, len(b.events))
 	copy(out, b.events)
 	return out
+}
+
+// Request does a NATS request/reply: publish to subject and wait for one reply.
+// A missing responder returns ErrNoResponders; a slow one returns ErrRequestTimeout.
+func (b *NatsBackend) Request(subject string, payload map[string]any, timeout time.Duration) (map[string]any, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	msg, err := b.nc.Request(subject, data, timeout)
+	if err != nil {
+		switch {
+		case errors.Is(err, nats.ErrNoResponders):
+			return nil, ErrNoResponders
+		case errors.Is(err, nats.ErrTimeout):
+			return nil, ErrRequestTimeout
+		}
+		return nil, err
+	}
+	var reply map[string]any
+	if json.Unmarshal(msg.Data, &reply) != nil {
+		return map[string]any{"raw": string(msg.Data)}, nil // reply wasn't a JSON object
+	}
+	return reply, nil
 }
 
 func (b *NatsBackend) Close() error { return b.nc.Drain() }
