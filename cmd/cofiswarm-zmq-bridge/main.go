@@ -48,17 +48,41 @@ func streamWildcard(cfg bus.Config) string {
 	return ">"
 }
 
-// newBackend selects the bus implementation. Default "mem" preserves prior behavior;
+// newBackend selects the bus implementation. Default "mem" preserves prior behavior.
 // COFISWARM_BUS=nats switches to a real NATS broker (the diagram's middle man), with
-// COFISWARM_NATS_URL (default nats://127.0.0.1:4222). wildcard is the recent-events tail.
+// COFISWARM_NATS_URL (default nats://127.0.0.1:4222). COFISWARM_BUS=zmq switches to the
+// real ZMQ carrier: an ingress SUB bound to COFISWARM_ZMQ_ADDR (default tcp://*:5556) that
+// collects every swarm.* frame from component PUBs, plus an egress PUB bound to
+// COFISWARM_ZMQ_EGRESS_ADDR (default tcp://*:5557, "off" to disable) that re-emits each
+// frame for the observer. wildcard is the recent-events tail.
 func newBackend(cfg bus.Config, wildcard string) (bus.Backend, string, error) {
-	if os.Getenv("COFISWARM_BUS") != "nats" {
+	switch os.Getenv("COFISWARM_BUS") {
+	case "nats":
+		url := os.Getenv("COFISWARM_NATS_URL")
+		if url == "" {
+			url = "nats://127.0.0.1:4222"
+		}
+		nb, err := bus.NewNats(url, cfg.Topics, wildcard)
+		return nb, "nats", err
+	case "zmq":
+		addr := os.Getenv("COFISWARM_ZMQ_ADDR")
+		if addr == "" {
+			addr = "tcp://*:5556"
+		}
+		egress := os.Getenv("COFISWARM_ZMQ_EGRESS_ADDR")
+		if egress == "" {
+			egress = "tcp://*:5557"
+		}
+		if egress == "off" {
+			egress = ""
+		}
+		filter := ""
+		if cfg.Prefix != "" {
+			filter = cfg.Prefix + "."
+		}
+		zb, err := bus.NewZmq(addr, egress, filter, cfg.Topics)
+		return zb, "zmq", err
+	default:
 		return bus.NewMem(cfg.Topics), "mem", nil
 	}
-	url := os.Getenv("COFISWARM_NATS_URL")
-	if url == "" {
-		url = "nats://127.0.0.1:4222"
-	}
-	nb, err := bus.NewNats(url, cfg.Topics, wildcard)
-	return nb, "nats", err
 }
