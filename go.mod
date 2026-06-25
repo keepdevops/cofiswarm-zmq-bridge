@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/go-zeromq/zmq4 v0.17.0
+	github.com/keepdevops/cofiswarm-observer-sdk v1.3.0
 	github.com/nats-io/nats.go v1.52.0
 	gopkg.in/yaml.v3 v3.0.1
 )
