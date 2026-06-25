@@ -9,6 +9,7 @@ import (
 
 	"github.com/keepdevops/cofiswarm-zmq-bridge/internal/bus"
 	"github.com/keepdevops/cofiswarm-zmq-bridge/internal/httpapi"
+	"github.com/keepdevops/cofiswarm-observer-sdk/pkg/buspresence"
 )
 
 func main() {
@@ -32,8 +33,21 @@ func main() {
 	}
 	defer b.Close()
 
-	log.Printf("zmq-bridge listening on %s (backend=%s, %d topics)", *addr, kind, len(cfg.Topics))
-	log.Fatal(http.ListenAndServe(*addr, httpapi.New(b, wildcard).Handler()))
+	go func() {
+		log.Printf("zmq-bridge listening on %s (backend=%s, %d topics)", *addr, kind, len(cfg.Topics))
+		log.Fatal(http.ListenAndServe(*addr, httpapi.New(b, wildcard).Handler()))
+	}()
+
+	// Self-presence: the bridge is the carrier, but announce it to its own /v1/publish so it
+	// also appears in the observer roster (re-announces on hello). COFISWARM_BRIDGE_SELF_URL
+	// overrides; default is the local listen address.
+	selfURL := os.Getenv("COFISWARM_BRIDGE_SELF_URL")
+	if selfURL == "" {
+		selfURL = "http://127.0.0.1" + *addr
+	}
+	_ = buspresence.StartPresence(selfURL, "zmq-bridge", map[string]any{"name": "zmq-bridge"})
+
+	select {} // serve forever (HTTP runs in the goroutine above)
 }
 
 // streamWildcard is the subject /v1/stream and the NATS recent-events tail subscribe to.
