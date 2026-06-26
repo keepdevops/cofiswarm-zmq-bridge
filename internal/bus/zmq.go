@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/go-zeromq/zmq4"
 )
@@ -23,6 +24,7 @@ import (
 type ZmqBackend struct {
 	sub    zmq4.Socket
 	pub    zmq4.Socket // egress; nil when no egress leg is wired
+	req    *zmqRouter  // request/reply broker leg; nil when no req leg is wired
 	topics []string
 
 	ctx    context.Context
@@ -42,9 +44,10 @@ type zmqSub struct {
 // NewZmq binds an ingress SUB socket on addr (e.g. tcp://*:5556), filtered to the topic
 // prefix filter ("" subscribes to everything), and starts the receive loop. If egressAddr
 // is non-empty it also binds an egress PUB socket there (e.g. tcp://*:5557) onto which
-// every delivered frame is re-emitted for external subscribers. topics is the declared
-// set reported by /v1/topics.
-func NewZmq(addr, egressAddr, filter string, topics []string) (*ZmqBackend, error) {
+// every delivered frame is re-emitted for external subscribers. If reqAddr is non-empty it
+// also binds a ROUTER socket there (e.g. tcp://*:5558) for request/reply, making the backend
+// a bus.Requester. topics is the declared set reported by /v1/topics.
+func NewZmq(addr, egressAddr, reqAddr, filter string, topics []string) (*ZmqBackend, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sub := zmq4.NewSub(ctx)
 	if err := sub.Listen(addr); err != nil {
@@ -66,9 +69,23 @@ func NewZmq(addr, egressAddr, filter string, topics []string) (*ZmqBackend, erro
 			return nil, err
 		}
 	}
+	var req *zmqRouter
+	if reqAddr != "" {
+		r, err := newZmqRouter(reqAddr)
+		if err != nil {
+			cancel()
+			_ = sub.Close()
+			if pub != nil {
+				_ = pub.Close()
+			}
+			return nil, err
+		}
+		req = r
+	}
 	b := &ZmqBackend{
 		sub:    sub,
 		pub:    pub,
+		req:    req,
 		topics: append([]string(nil), topics...),
 		ctx:    ctx,
 		cancel: cancel,
@@ -175,6 +192,25 @@ func (b *ZmqBackend) Subscribe(topic string, fn Handler) (func(), error) {
 	return cancel, nil
 }
 
+// Request routes payload to a live responder for subject over the ROUTER leg and blocks for
+// its reply, satisfying bus.Requester. Returns ErrNoResponders when the req leg is disabled
+// (no reqAddr) or no live responder serves the subject; ErrRequestTimeout when one is slow.
+func (b *ZmqBackend) Request(subject string, payload map[string]any, timeout time.Duration) (map[string]any, error) {
+	if b.req == nil {
+		return nil, ErrNoResponders
+	}
+	return b.req.Request(subject, payload, timeout)
+}
+
+// RequestStream routes a streaming request over the ROUTER leg, satisfying bus.StreamRequester.
+// Returns ErrNoResponders when the req leg is disabled or no live responder serves the subject.
+func (b *ZmqBackend) RequestStream(subject string, payload map[string]any, timeout time.Duration) (<-chan []byte, error) {
+	if b.req == nil {
+		return nil, ErrNoResponders
+	}
+	return b.req.RequestStream(subject, payload, timeout)
+}
+
 func (b *ZmqBackend) Recent() []map[string]any {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -188,6 +224,11 @@ func (b *ZmqBackend) Close() error {
 	err := b.sub.Close()
 	if b.pub != nil {
 		if perr := b.pub.Close(); err == nil {
+			err = perr
+		}
+	}
+	if b.req != nil {
+		if perr := b.req.Close(); err == nil {
 			err = perr
 		}
 	}
