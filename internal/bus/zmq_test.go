@@ -107,7 +107,7 @@ func TestZmqWireRoundTrip(t *testing.T) {
 func TestZmqEgressForward(t *testing.T) {
 	const ingressAddr = "tcp://127.0.0.1:55624"
 	const egressAddr = "tcp://127.0.0.1:55625"
-	b, err := NewZmq(ingressAddr, egressAddr, "swarm.", []string{"swarm.slot.erase"})
+	b, err := NewZmq(ingressAddr, egressAddr, "", "swarm.", []string{"swarm.slot.erase"})
 	if err != nil {
 		t.Skipf("cannot bind ZMQ carrier: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestZmqEgressForward(t *testing.T) {
 
 func newZmqForTest(t *testing.T, addr string) *ZmqBackend {
 	t.Helper()
-	b, err := NewZmq(addr, "", "swarm.", []string{"swarm.slot.erase"})
+	b, err := NewZmq(addr, "", "", "swarm.", []string{"swarm.slot.erase"})
 	if err != nil {
 		t.Skipf("cannot bind ZMQ carrier on %s: %v", addr, err)
 	}

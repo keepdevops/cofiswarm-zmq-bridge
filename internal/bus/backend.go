@@ -20,10 +20,18 @@ type Backend interface {
 	Close() error
 }
 
-// Requester is an optional capability: backends that support NATS request/reply implement
-// it (NatsBackend does; MemBackend does not). Used by the /v1/request HTTP gateway.
+// Requester is an optional capability: backends that support request/reply implement it
+// (NatsBackend and ZmqBackend do; MemBackend does not). Used by the /v1/request HTTP gateway.
 type Requester interface {
 	Request(subject string, payload map[string]any, timeout time.Duration) (map[string]any, error)
+}
+
+// StreamRequester is an optional capability for streamed request/reply: the response arrives as
+// a sequence of raw chunks (e.g. an SSE token stream) on the returned channel, which closes when
+// the stream ends, errors, or times out. Only ZmqBackend implements it (over the ROUTER leg);
+// used by the /v1/request/stream HTTP gateway.
+type StreamRequester interface {
+	RequestStream(subject string, payload map[string]any, timeout time.Duration) (<-chan []byte, error)
 }
 
 // Config is the topics.yaml shape (see cofiswarm-common/zmq/topics.yaml).

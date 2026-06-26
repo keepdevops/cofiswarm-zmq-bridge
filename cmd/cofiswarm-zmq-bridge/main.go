@@ -90,11 +90,19 @@ func newBackend(cfg bus.Config, wildcard string) (bus.Backend, string, error) {
 		if egress == "off" {
 			egress = ""
 		}
+		// Request/reply leg (ROUTER): "off" disables it (telemetry-only carrier).
+		reqAddr := os.Getenv("COFISWARM_ZMQ_REQ_ADDR")
+		if reqAddr == "" {
+			reqAddr = "tcp://*:5558"
+		}
+		if reqAddr == "off" {
+			reqAddr = ""
+		}
 		filter := ""
 		if cfg.Prefix != "" {
 			filter = cfg.Prefix + "."
 		}
-		zb, err := bus.NewZmq(addr, egress, filter, cfg.Topics)
+		zb, err := bus.NewZmq(addr, egress, reqAddr, filter, cfg.Topics)
 		return zb, "zmq", err
 	default:
 		return bus.NewMem(cfg.Topics), "mem", nil
